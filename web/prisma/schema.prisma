@@ -1,0 +1,85 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Data model per Goal.txt section 6 (User, Profile, ApiKey, Template, ResumeVersion).
+// Step 1 of Goal.txt's build order: backend scaffold + DB schema only.
+// OAuth, profile CRUD endpoints, key encryption flow, and Gemini/LaTeX
+// pipeline are later build-order steps, not part of this schema.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  googleId     String    @unique
+  email        String    @unique
+  name         String
+  createdAt    DateTime  @default(now())
+
+  profile      Profile?
+  apiKey       ApiKey?
+}
+
+model Profile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Structured profile data (canonical source resumes are generated from,
+  // never edited directly as raw text — see Goal.txt section 2 step 4).
+  personalInfo     Json    @default("{}")
+  workExperience   Json    @default("[]")
+  education        Json    @default("[]")
+  skills           Json    @default("[]")
+  projects         Json    @default("[]")
+  certifications   Json    @default("[]")
+  // Extends Goal.txt's 6 base fields: several seeded templates render an
+  // Achievements section, so it needs a home in the profile data too.
+  achievements     Json    @default("[]")
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  resumeVersions ResumeVersion[]
+}
+
+model ApiKey {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // AES-256 ciphertext, never the raw key (see Goal.txt section 7).
+  encryptedKey String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+}
+
+model Template {
+  id                 String   @id @default(cuid())
+  name               String
+  description        String
+  latexTemplateSource String  @db.Text
+  createdAt          DateTime @default(now())
+
+  resumeVersions     ResumeVersion[]
+}
+
+model ResumeVersion {
+  id              String    @id @default(cuid())
+  profileId       String
+  profile         Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  templateId      String
+  template        Template  @relation(fields: [templateId], references: [id])
+
+  jobDescription  String?   @db.Text
+  generatedLatex  String    @db.Text
+  generatedPdfUrl String?
+  label           String?
+  createdAt       DateTime  @default(now())
+}

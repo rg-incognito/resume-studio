@@ -1,0 +1,44 @@
+import type { NextRequest } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser, unauthorized } from "@/lib/auth";
+import { decrypt } from "@/lib/encryption";
+import { parseResumeText } from "@/lib/gemini";
+import { describeGeminiError } from "@/lib/geminiErrors";
+
+const bodySchema = z.object({ resumeText: z.string().min(20).max(30_000) });
+
+// Extracts structured profile data from pasted resume text using the user's
+// own Gemini key. Returns the parsed profile for the client to pre-fill the
+// form with — never writes to the DB directly, so the user reviews/edits
+// before saving via PUT /api/profile as usual.
+export async function POST(request: NextRequest) {
+  const user = await getCurrentUser(request);
+  if (!user) return unauthorized();
+
+  const parsed = bodySchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const apiKeyRecord = await prisma.apiKey.findUnique({ where: { userId: user.id } });
+  if (!apiKeyRecord) {
+    return Response.json(
+      { error: "Add your Gemini API key in Settings first" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const profile = await parseResumeText({
+      resumeText: parsed.data.resumeText,
+      apiKey: decrypt(apiKeyRecord.encryptedKey),
+    });
+    return Response.json(profile);
+  } catch (err) {
+    return Response.json(
+      { error: `Couldn't parse that resume: ${describeGeminiError(err)}` },
+      { status: 502 },
+    );
+  }
+}

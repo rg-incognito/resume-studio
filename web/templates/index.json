@@ -1,0 +1,110 @@
+[
+  {
+    "id": "classic-jake",
+    "file": "01-classic-jake.tex",
+    "name": "Classic",
+    "description": "The baseline single-column ATS-safe layout: black section rules, default serif font, standard spacing. The reference design every other template in this set is built from."
+  },
+  {
+    "id": "navy-accent",
+    "file": "02-navy-accent.tex",
+    "name": "Navy Accent",
+    "description": "Classic layout with navy blue section rules and name for a subtle professional accent color."
+  },
+  {
+    "id": "charcoal-teal",
+    "file": "03-charcoal-teal.tex",
+    "name": "Charcoal & Teal",
+    "description": "Charcoal body text with teal section rules and name for a softer, modern contrast."
+  },
+  {
+    "id": "maroon-academic",
+    "file": "04-maroon-academic.tex",
+    "name": "Maroon Academic",
+    "description": "Charter serif font with a maroon accent, suited to academic and research-oriented resumes."
+  },
+  {
+    "id": "sans-modern",
+    "file": "05-sans-modern.tex",
+    "name": "Sans Modern",
+    "description": "Source Sans Pro sans-serif with black rules for a clean, contemporary tech-resume look."
+  },
+  {
+    "id": "sans-blue",
+    "file": "06-sans-blue.tex",
+    "name": "Sans Blue",
+    "description": "Roboto sans-serif with a blue accent, a popular choice for engineering and product roles."
+  },
+  {
+    "id": "garamond-elegant",
+    "file": "07-garamond-elegant.tex",
+    "name": "Garamond Elegant",
+    "description": "Cormorant Garamond serif, a thin gray rule, and extra spacing for an elegant, editorial feel."
+  },
+  {
+    "id": "compact-dense",
+    "file": "08-compact-dense.tex",
+    "name": "Compact Dense",
+    "description": "Classic layout with tightened vertical spacing to fit more content on a single page."
+  },
+  {
+    "id": "spacious-clean",
+    "file": "09-spacious-clean.tex",
+    "name": "Spacious Clean",
+    "description": "Extra breathing room and a thin minimalist rule, best for resumes with less content."
+  },
+  {
+    "id": "double-rule",
+    "file": "10-double-rule.tex",
+    "name": "Double Rule",
+    "description": "Two closely-stacked thin rules below each section heading for a bit more visual structure."
+  },
+  {
+    "id": "left-bar-sections",
+    "file": "11-left-bar-sections.tex",
+    "name": "Left Bar Sections",
+    "description": "Section headings marked with a small indigo bar instead of a full-width rule."
+  },
+  {
+    "id": "icon-free-maxats",
+    "file": "12-icon-free-maxats.tex",
+    "name": "Icon-Free Max ATS",
+    "description": "No FontAwesome icons anywhere and plain-text contact labels, for maximum compatibility with ATS parsers that mishandle symbol fonts."
+  },
+  {
+    "id": "single-line-header",
+    "file": "13-single-line-header.tex",
+    "name": "Single Line Header",
+    "description": "Contact details compressed onto one line beneath the name with a forest-green divider rule, saving vertical space."
+  },
+  {
+    "id": "education-first-student",
+    "file": "14-education-first-student.tex",
+    "name": "Education First (Student)",
+    "description": "Same design, reordered to lead with Education, for students and new graduates."
+  },
+  {
+    "id": "projects-first-engineer",
+    "file": "15-projects-first-engineer.tex",
+    "name": "Projects First (Engineer)",
+    "description": "Same design, reordered to put Projects right after Experience, for engineers who want projects prominent."
+  },
+  {
+    "id": "skills-first-career",
+    "file": "16-skills-first-career.tex",
+    "name": "Skills First (Career Changer)",
+    "description": "Same design, reordered to lead with Technical Skills, for career changers foregrounding transferable skills."
+  },
+  {
+    "id": "consolidated-additional-info",
+    "file": "17-consolidated-additional-info.tex",
+    "name": "Consolidated Additional Info",
+    "description": "Profile Links and Achievements merged into one Additional Information section with compact spacing, for one-page-constrained resumes."
+  },
+  {
+    "id": "bold-header-box",
+    "file": "18-bold-header-box.tex",
+    "name": "Bold Header Banner",
+    "description": "Larger bold name with a thick divider rule and heavier section rules for a confident, executive presentation."
+  }
+]

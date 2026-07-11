@@ -1,0 +1,171 @@
+% Template: Spacious Clean
+% Axis: spacing + rule weight. More breathing room, thin minimalist rule.
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage{multicol}
+\setlength{\multicolsep}{-3.0pt}
+\setlength{\columnsep}{-1pt}
+\input{glyphtounicode}
+\usepackage{tikz}
+
+\definecolor{accent}{RGB}{0,0,0}
+
+\newcommand{\ExternalLink}{%
+    \tikz[x=1.2ex, y=1.2ex, baseline=-0.05ex]{%
+        \begin{scope}[x=1ex, y=1ex]
+            \clip (-0.1,-0.1) --++ (-0, 1.2) --++ (0.6, 0) --++ (0, -0.6) --++ (0.6, 0) --++ (0, -1);
+            \path[draw, line width = 0.5, rounded corners=0.5] (0,0) rectangle (1,1);
+        \end{scope}
+        \path[draw, line width = 0.5] (0.5, 0.5) -- (1, 1);
+        \path[draw, line width = 0.5] (0.6, 1) -- (1, 1) -- (1, 0.6);
+        }
+    }
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.19in}
+\addtolength{\topmargin}{-.7in}
+\addtolength{\textheight}{1.4in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-3.5pt}\scshape\raggedright\large\bfseries\color{accent}
+}{}{0em}{}[{\color{accent}\titlerule[0.5pt]} \vspace{-5pt}]
+
+\pdfgentounicode=1
+
+\newcommand{\resumeItem}[1]{
+  \item\small{
+	{#1 \vspace{-1.5pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-1.5pt}\item
+	\begin{tabular*}{1.0\textwidth}[t]{l@{\extracolsep{\fill}}r}
+  	\textbf{#1} & \textbf{\small #2} \\
+  	\textit{\small#3} & \textit{\small #4} \\
+	\end{tabular*}\vspace{-6.5pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+	\item
+	\begin{tabular*}{1.001\textwidth}{l@{\extracolsep{\fill}}r}
+  	\small#1 & \textbf{\small #2}\\
+	\end{tabular*}\vspace{-6.5pt}
+}
+
+\renewcommand\labelitemi{$\vcenter{\hbox{\tiny$\bullet$}}$}
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.0in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-4.5pt}}
+
+\begin{document}
+
+\begin{center}
+	{\Huge \scshape Rohit Gande} \\ \vspace{1pt}
+	\color{black}Pune, Maharashtra \\ \vspace{1pt}
+	\small \raisebox{-0.1\height}\faPhone\ +91 9527513399 ~ \href{mailto:dev.rohitgande@gmail.com}{\raisebox{-0.2\height}\faEnvelope\  \underline{dev.rohitgande@gmail.com}} ~
+	\href{https://linkedin.com/in/rohit-gande}{\raisebox{-0.2\height}\faLinkedin\ \underline{linkedin.com/in/rohit-gande}}
+	\vspace{-8pt}
+\end{center}
+
+\section{Experience}
+  \resumeSubHeadingListStart
+  	\resumeSubheading
+  	{DMG}{July 2025 - Present}
+  	{Software Development Engineer 2}{Bangalore, India}
+  	\resumeItemListStart
+    	\resumeItem{Implemented gRPC-based inter-service communication, improving data exchange efficiency and reducing latency between microservices by ~30\% compared to traditional REST APIs.}
+    	\resumeItem{Designed and integrated proto definitions and service contracts to ensure type-safe and scalable API interactions across distributed systems.}
+        \resumeItem{Contributed to unit and integration test coverage for gRPC modules, improving overall code quality and deployment confidence.}
+	\resumeItemListEnd
+	\resumeSubheading
+  	{Sincro, a DealerOn company}{Sept 2023 - April 2025}
+  	{Member Technical}{Pune, India}
+  	\resumeItemListStart
+    	\resumeItem{\textbf{Engineered} a flexible ad framework using Expansion tags and inserted offers and content based on user behavior, resulting in a \textbf{30\%} boost in user engagement and a \textbf{15\%} reduction in manual update time.}
+    	\resumeItem{Integrated Bing Automotive Inventory advertising RESTful API to support feed-based ad campaigns, resulting in an increase in campaign scalability and cutting down ad setup time by \textbf{50\%}, enhancing overall campaign automation.}
+	\resumeItemListEnd
+    \resumeSubheading
+  	{Indian Institute of Tropical Meteorology}{Jun 2022 - Dec 2022}
+  	{Project Engineer}{Pune, India}
+  	\resumeItemListStart
+    	\resumeItem{Built a YOLOv4 vehicle detection model for the Indian vehicle dataset, coordinated with the team to generate outlier-free datasets and manually annotated over 3000 images, resulting in a \textbf{15\%} increase in accuracy.}
+    	\resumeItem{Optimized the model's frame rate from \textbf{22} frames per second (FPS) to \textbf{60} FPS, reducing latency by \textbf{25\%} and improving real-time processing speed for faster decision-making.}
+	\resumeItemListEnd
+  \resumeSubHeadingListEnd
+\vspace{-15pt}
+
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+	\small{\item{
+ 	\textbf{Languages and Database}{: Java, Python, JavaScript, SQL, MySQL, RDBMS, PostgreSQL, NoSQL} \\
+ 	\textbf{Technologies/Frameworks/Libraries}{: Spring Boot, Junit, ReactJS, NodeJs, AngularJs, AWS, Docker, CrewAI, LLM}
+	}}
+ \end{itemize}
+ \vspace{-15pt}
+
+\section{Projects}
+	\vspace{-5pt}
+	\resumeSubHeadingListStart
+	\resumeProjectHeading
+      	{\textbf{AI-Powered Web Browsing Automation} $|$ \emph{Python, JavaScript, LLM, Agent}}{Dec 2024 - Present}
+      	\resumeItemListStart
+        	\resumeItem{\textbf{Designed} and implemented an AI-driven system that processes user inputs and autonomously executes over \textbf{50\%} of tasks related to web browsing, including navigation, form submissions, and interactions with web elements.}
+        	\resumeItem{Reduced the time spent on repetitive web tasks by \textbf{60\%}, significantly improving efficiency and minimizing human error.}
+      	\resumeItemListEnd
+	\resumeSubHeadingListEnd
+\vspace{-14pt}
+
+\section{Education}
+  \resumeSubHeadingListStart
+	\resumeSubheading
+  	{G. H. Raisoni College of Engineering and Management, Pune}{Aug 2019 - Jun 2023}
+  	{Bachelor of Technology in Computer Engineering}{Maharashtra, India}
+  \resumeSubHeadingListEnd
+
+\section{Profile Links}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+        \resumeItem{\href{https://leetcode.com/u/rg-incognito/}{Leetcode \ExternalLink}}
+        \resumeItem{\href{https://www.geeksforgeeks.org/user/rohitrohit0705/}{GeeksforGeeks \ExternalLink}}
+    	\resumeItem{\href{https://github.com/rg-incognito/}{GitHub \ExternalLink}}
+ \end{itemize}
+ \vspace{-16pt}
+
+\section{Achievements}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    	\resumeItem{\textbf{Led} the Core Team as Technical Lead at Google Developers Student Club (GDSC) GHRCEM Pune in the 2022-23 academic year, managing a team of 23 students.}
+        \resumeItem{Mentored more than \textbf{550} participants during community events, providing guidance and support to enhance their technical skills and engagement.}
+    	\resumeItem{\textbf{Facilitated} the Android Study Jam Compose Camp organized by GDSC GHRCEM Pune, conducting 4 sessions to train participants on Android development.}
+        \resumeItem{\textbf{Ranked} in the top 15 in India in the app submission challenge, demonstrating strong skills in mobile app development.}
+    	\resumeItem{Acknowledged in Q3 for spearheading the development of a groundbreaking \textbf{ML project}, recognized for its innovative and unconventional approach.}
+    	\resumeItem{Solved over \textbf{1000+ problems} across various coding platforms such as LeetCode, GeeksforGeeks and Code360.}
+ \end{itemize}
+ \vspace{-16pt}
+\end{document}

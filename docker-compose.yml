@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: resume_saas
+      POSTGRES_PASSWORD: resume_saas
+      POSTGRES_DB: resume_saas
+    ports:
+      - "5432:5432"
+    volumes:
+      - resume_saas_db_data:/var/lib/postgresql/data
+
+volumes:
+  resume_saas_db_data:

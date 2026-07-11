@@ -1,0 +1,8 @@
+# Personal data — this is a real resume with real PII, never push it.
+original_resume_latex.txt
+
+# Not part of the app.
+*.mp3
+
+# Local Claude Code config/plans, not part of the project.
+.claude/

@@ -1,0 +1,100 @@
+# Project Spec: Free LaTeX Resume + Career Platform (BYOK)
+
+## 1. Product Summary
+A free, ad-free SaaS where users build and continuously refine a LaTeX resume. Users bring their own Google Gemini API key (BYOK) — the platform makes zero AI inference calls at its own cost. All AI generation happens using the user's own quota.
+
+Core value props:
+- 100% free resume templates (no paywalled premium templates)
+- AI-powered resume generation and job-specific tailoring
+- User owns their own AI cost/quota via BYOK
+
+## 2. User Flow (End to End)
+
+1. User lands on site → clicks "Sign in with Google" (OAuth)
+2. On first login, onboarding wizard prompts: "Get a free Gemini API key" with a short guided walkthrough (screenshots/link to Google AI Studio)
+3. User pastes their Gemini API key into their Profile settings → key is encrypted and stored
+4. User fills out their **Profile** (structured data, not raw resume text):
+   - Personal info (name, contact, links)
+   - Work experience (company, role, dates, bullet points)
+   - Education
+   - Skills
+   - Projects
+   - Certifications
+5. User clicks **"Generate Resume"**:
+   - Backend pulls profile data + selected template
+   - Backend calls Gemini API (using user's stored key) with a prompt to produce LaTeX matching the target template's structure
+   - Backend compiles the returned `.tex` into a `.pdf` via a sandboxed LaTeX compiler
+   - User sees PDF preview + can download `.pdf` and/or `.tex`
+6. User can **paste a job description** → "Tailor this resume" action:
+   - Backend sends profile data + JD to Gemini with instructions to reorder/rewrite bullets for relevance and keyword/ATS alignment
+   - Produces a new resume "version" tied to that job, without overwriting the base profile
+7. User can save multiple tailored resume versions per profile (e.g., "Backend Engineer version," "PM version")
+
+## 3. Core Feature Set (v1 / MVP)
+
+- Google OAuth sign-in
+- Structured profile builder (the canonical data source — resume is always *generated from* this, never edited directly as raw text)
+- Gemini API key storage (encrypted at rest, user can view masked/rotate/delete key)
+- LaTeX resume generation from profile + template
+- LaTeX → PDF compilation (sandboxed)
+- Multiple free templates to choose from
+- Job description paste → tailored resume regeneration
+- Resume version history per profile (list of previously generated versions, downloadable)
+- Download as `.pdf` and `.tex`
+
+## 4. Post-MVP Feature Backlog (from brainstorm)
+
+- ATS score checker — parse generated resume, flag formatting/keyword issues
+- Cover letter generation using the same key + JD
+- Resume diffing — show what changed between base and tailored version
+- Community-contributed template marketplace (still free)
+- LinkedIn PDF import to pre-fill profile
+- Automatic JD keyword/skill extraction (instead of manual paste)
+
+## 5. Architecture
+
+**Layers:**
+1. **Frontend** — handles Google sign-in, profile forms, resume preview/download UI
+2. **Backend API server** — owns all business logic:
+   - user + profile CRUD
+   - encrypts/decrypts/stores Gemini API keys (never exposed to frontend after initial entry)
+   - orchestrates Gemini API calls using the user's key (server-side call, not client-side, so the key never appears in browser network requests)
+   - triggers LaTeX compilation
+3. **LaTeX compiler service** — isolated (Docker) process/container running `tectonic` or `texlive`, takes `.tex` in, returns `.pdf` out. Keep this sandboxed since it's compiling AI-generated content.
+4. **Database** — users, profiles, resume versions/templates, encrypted keys
+
+**Hosting (Oracle Cloud Always Free Tier):**
+- 1x Arm-based VM (2 OCPU / 12 GB RAM as of current free-tier limits) — runs backend + LaTeX compiler container
+- 1–2x AMD micro VMs (always free) — can host lightweight background workers or a reverse proxy if needed
+- Oracle Autonomous Database (free tier) for persistent storage
+- Object storage (free tier, 200GB) for storing generated PDFs/tex files if not regenerated on demand
+
+**No MCP needed for v1.** Direct API calls to Gemini (server → Gemini API) are sufficient; MCP would only matter if you later want the AI to autonomously call multiple tools/services on its own (e.g., an agent that searches job boards). Revisit as a v2+ feature.
+
+## 6. Data Model (high-level entities)
+
+- **User**: id, google_id, email, name, created_at
+- **Profile**: id, user_id, personal_info (json), work_experience (json/array), education (array), skills (array), projects (array), certifications (array)
+- **ApiKey**: id, user_id, encrypted_key, created_at, last_used_at
+- **Template**: id, name, description, latex_template_source
+- **ResumeVersion**: id, profile_id, template_id, job_description (nullable, text), generated_latex, generated_pdf_url, created_at, label (e.g. "Backend Engineer v1")
+
+## 7. Security Notes
+
+- Encrypt API keys at rest (e.g., AES-256), never log them, never send them anywhere except directly to Gemini's endpoint
+- Let users view (masked), rotate, and delete their key from their profile at any time
+- Sandbox the LaTeX compiler — it's processing AI-generated `.tex` source, so isolate the compile step (no shell injection risk, limited filesystem access, timeouts on compile jobs)
+- Rate-limit generation requests per user to avoid abuse (even though it's their own key, protect your backend from being used as a free relay/proxy for unrelated Gemini calls)
+
+## 8. Suggested Build Order for Claude Code
+
+1. Scaffold backend + DB schema (users, profiles, api keys, templates, resume versions)
+2. Google OAuth sign-in flow
+3. Profile CRUD (forms + API endpoints)
+4. API key entry/encryption/storage flow
+5. One working LaTeX template + compiler pipeline (hardcode one profile → confirm PDF output works end-to-end)
+6. Gemini API integration — profile data → generated LaTeX
+7. Job description tailoring flow (second Gemini call path)
+8. Resume version history UI
+9. Add remaining free templates
+10. Polish onboarding wizard (Gemini key walkthrough) last, once the core loop works
