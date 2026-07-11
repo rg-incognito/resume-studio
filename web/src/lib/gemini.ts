@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { GoogleGenAI } from "@google/genai";
 import { profileSchema, type ProfileInput } from "@/lib/schemas/profile";
+import { generateContentWithFallback } from "@/lib/geminiModel";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-flash-latest";
 const PROFILE_JSON_SCHEMA = z.toJSONSchema(profileSchema);
 
 const BEGIN_DOCUMENT = "\\begin{document}";
@@ -105,7 +106,7 @@ export async function generateResumeLatex({
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
   const { preamble, body } = splitTemplate(templateSource);
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithFallback(ai, apiKey, {
     model,
     contents: buildPrompt(profile, body, jobDescription),
   });
@@ -149,7 +150,7 @@ RESUME TEXT:
 ${resumeText}
 """`;
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithFallback(ai, apiKey, {
     model,
     contents: prompt,
     config: {

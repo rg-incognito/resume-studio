@@ -23,6 +23,12 @@ export function describeGeminiError(err: unknown): string {
   if (message.includes('"code":403') || message.includes("PERMISSION_DENIED")) {
     return "Your Gemini API key doesn't have permission for this model. Check it in Settings.";
   }
+  if (message.includes("GeminiModelUnavailableError") || message.includes("no working alternative")) {
+    return "None of the Gemini models available to your API key could be reached right now. This can happen right after Google retires a model — try again in a moment, or check that your key has access to at least one Gemini model at ai.google.dev.";
+  }
+  if (message.includes('"code":404') && message.includes("no longer available")) {
+    return "The Gemini model this app was configured to use has been retired by Google for your account. The app tried to automatically switch to a different available model — if you're seeing this, that also failed. Try again in a moment.";
+  }
 
   return message;
 }

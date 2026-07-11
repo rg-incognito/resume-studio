@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { GoogleGenAI } from "@google/genai";
 import { atsReportSchema, type AtsReport } from "@/lib/schemas/atsCheck";
+import { generateContentWithFallback } from "@/lib/geminiModel";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-flash-latest";
 const REPORT_JSON_SCHEMA = z.toJSONSchema(atsReportSchema);
 
 const SECTION_CANDIDATES = [
@@ -123,7 +124,7 @@ export async function analyzeAts({
   const ai = new GoogleGenAI({ apiKey });
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithFallback(ai, apiKey, {
     model,
     contents: buildPrompt(resumeText, jobDescription, signals),
     config: {

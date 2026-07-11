@@ -48,8 +48,11 @@ Once signed in, paste a free key from
 **Settings** in the app. It's encrypted at rest (AES-256-GCM, `ENCRYPTION_KEY`
 in `web/.env`, already generated for local dev) and only ever decrypted
 server-side, right before the Gemini call. `GEMINI_MODEL` in `.env` controls
-which model `src/lib/gemini.ts` calls — defaults to `gemini-2.5-flash`; change
-it there if that model id has since rotated out.
+which model `src/lib/gemini.ts` calls — defaults to `gemini-flash-latest`, a
+Google-maintained alias that stays current, so it shouldn't need manual
+updates. If a request's configured model has been retired anyway,
+`src/lib/geminiModel.ts` automatically discovers and retries with a working
+model via `ai.models.list()`.
 
 ## Layout
 
