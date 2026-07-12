@@ -1,9 +1,7 @@
 import { z } from "zod";
-import { GoogleGenAI } from "@google/genai";
 import { atsReportSchema, type AtsReport } from "@/lib/schemas/atsCheck";
-import { generateContentWithFallback } from "@/lib/geminiModel";
+import { getProvider, type AiProviderId } from "@/lib/ai";
 
-const DEFAULT_MODEL = "gemini-flash-latest";
 const REPORT_JSON_SCHEMA = z.toJSONSchema(atsReportSchema);
 
 const SECTION_CANDIDATES = [
@@ -114,31 +112,23 @@ export async function analyzeAts({
   totalPages,
   jobDescription,
   apiKey,
+  provider,
 }: {
   resumeText: string;
   totalPages: number;
   jobDescription?: string;
   apiKey: string;
+  provider: AiProviderId;
 }): Promise<AtsReport> {
   const signals = deterministicSignals(resumeText, totalPages);
-  const ai = new GoogleGenAI({ apiKey });
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
-  const response = await generateContentWithFallback(ai, apiKey, {
-    model,
-    contents: buildPrompt(resumeText, jobDescription, signals),
-    config: {
-      responseMimeType: "application/json",
-      responseJsonSchema: REPORT_JSON_SCHEMA,
-    },
+  const result = await getProvider(provider).generateStructured({
+    prompt: buildPrompt(resumeText, jobDescription, signals),
+    apiKey,
+    jsonSchema: REPORT_JSON_SCHEMA,
   });
 
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned an empty response");
-  }
-
-  const parsed = atsReportSchema.safeParse(clampStringLengths(JSON.parse(text)));
+  const parsed = atsReportSchema.safeParse(clampStringLengths(result));
   if (!parsed.success) {
     throw new Error("The ATS analysis didn't match the expected shape");
   }

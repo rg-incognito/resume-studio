@@ -41,18 +41,27 @@ exist and build cleanly. What's blocking a full live test:
 5. Restart `npm run dev`. Sign-in should work immediately — `src/lib/auth.ts`
    upserts a `User` row on first sign-in, no separate signup step.
 
-## Gemini key (to unlock actual generation)
+## AI provider key (to unlock actual generation)
 
-Once signed in, paste a free key from
-[aistudio.google.com/apikey](https://aistudio.google.com/apikey) into
-**Settings** in the app. It's encrypted at rest (AES-256-GCM, `ENCRYPTION_KEY`
-in `web/.env`, already generated for local dev) and only ever decrypted
-server-side, right before the Gemini call. `GEMINI_MODEL` in `.env` controls
-which model `src/lib/gemini.ts` calls — defaults to `gemini-flash-latest`, a
-Google-maintained alias that stays current, so it shouldn't need manual
-updates. If a request's configured model has been retired anyway,
-`src/lib/geminiModel.ts` automatically discovers and retries with a working
-model via `ai.models.list()`.
+Once signed in, go to **Settings**, pick a provider (Gemini, Anthropic, or
+OpenAI), and paste a key of your own for it — Gemini has a free tier at
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey). Only one
+key is stored at a time; picking a different provider and saving a key
+replaces whatever was there. The key is encrypted at rest (AES-256-GCM,
+`ENCRYPTION_KEY` in `web/.env`, already generated for local dev) and only
+ever decrypted server-side, right before the call to that provider's API.
+
+`src/lib/ai/` holds one adapter per provider (`gemini.ts`, `anthropic.ts`,
+`openai.ts`) behind a common interface (`src/lib/ai/types.ts`), so
+`src/lib/resumeAi.ts` (LaTeX generation, resume-paste parsing) and
+`src/lib/atsCheck.ts` (ATS scoring) don't know or care which provider is
+active. Each provider's model id is configurable via its own env var
+(`GEMINI_MODEL`, `ANTHROPIC_MODEL`, `OPENAI_MODEL`) — update these if a
+provider rotates model availability out from under the configured default.
+Gemini additionally auto-discovers and retries with a working model via
+`ai.models.list()` if its configured model gets retired (`src/lib/ai/gemini.ts`)
+— this isn't built for Anthropic/OpenAI since there's no evidence yet of the
+same problem there.
 
 ## Layout
 

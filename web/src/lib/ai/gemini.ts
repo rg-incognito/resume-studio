@@ -1,4 +1,7 @@
-import type { GenerateContentParameters, GenerateContentResponse, GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type GenerateContentParameters, type GenerateContentResponse } from "@google/genai";
+import type { AiProvider, GenerateStructuredParams, GenerateTextParams } from "@/lib/ai/types";
+
+const DEFAULT_MODEL = "gemini-flash-latest";
 
 // Preferred by substring match, checked in order — cheaper/faster models
 // first. Gemini's available model lineup changes over time (a hardcoded
@@ -59,7 +62,7 @@ async function discoverFallbackModel(ai: GoogleGenAI, tried: Set<string>): Promi
  * been retired/deprecated for this account. Throws GeminiModelUnavailableError
  * with a clear message if no working model can be found at all.
  */
-export async function generateContentWithFallback(
+async function generateContentWithFallback(
   ai: GoogleGenAI,
   apiKey: string,
   params: GenerateContentParameters,
@@ -86,7 +89,38 @@ export async function generateContentWithFallback(
       model = fallback;
     }
   }
-  throw new GeminiModelUnavailableError(
-    `Tried ${tried.size} Gemini models and none worked for this API key.`,
-  );
+  throw new GeminiModelUnavailableError(`Tried ${tried.size} Gemini models and none worked for this API key.`);
 }
+
+async function generateText({ prompt, apiKey }: GenerateTextParams): Promise<string> {
+  const ai = new GoogleGenAI({ apiKey });
+  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+
+  const response = await generateContentWithFallback(ai, apiKey, { model, contents: prompt });
+  const text = response.text;
+  if (!text) throw new Error("Gemini returned an empty response");
+  return text;
+}
+
+async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStructuredParams): Promise<unknown> {
+  const ai = new GoogleGenAI({ apiKey });
+  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+
+  const response = await generateContentWithFallback(ai, apiKey, {
+    model,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseJsonSchema: jsonSchema,
+    },
+  });
+  const text = response.text;
+  if (!text) throw new Error("Gemini returned an empty response");
+  return JSON.parse(text);
+}
+
+export const geminiProvider: AiProvider = {
+  id: "gemini",
+  generateText,
+  generateStructured,
+};

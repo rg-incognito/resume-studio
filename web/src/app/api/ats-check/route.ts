@@ -4,7 +4,8 @@ import { getCurrentUser, unauthorized } from "@/lib/auth";
 import { decrypt } from "@/lib/encryption";
 import { assertPdfSize, extractPdfText, PdfTextExtractionError } from "@/lib/pdfText";
 import { analyzeAts } from "@/lib/atsCheck";
-import { describeGeminiError } from "@/lib/geminiErrors";
+import { describeAiError } from "@/lib/aiErrors";
+import type { AiProviderId } from "@/lib/ai";
 
 const MAX_JD_CHARS = 20_000;
 
@@ -15,10 +16,11 @@ export async function POST(request: NextRequest) {
   const apiKeyRecord = await prisma.apiKey.findUnique({ where: { userId: user.id } });
   if (!apiKeyRecord) {
     return Response.json(
-      { error: "Add your Gemini API key in Settings first" },
+      { error: "Add an API key in Settings first" },
       { status: 400 },
     );
   }
+  const provider = apiKeyRecord.provider as AiProviderId;
 
   const form = await request.formData();
   const file = form.get("resume");
@@ -59,11 +61,12 @@ export async function POST(request: NextRequest) {
       totalPages,
       jobDescription: jobDescription || undefined,
       apiKey: decrypt(apiKeyRecord.encryptedKey),
+      provider,
     });
     return Response.json(report);
   } catch (err) {
     return Response.json(
-      { error: `ATS analysis failed: ${describeGeminiError(err)}` },
+      { error: `ATS analysis failed: ${describeAiError(err, provider)}` },
       { status: 502 },
     );
   }

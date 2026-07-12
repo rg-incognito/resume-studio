@@ -1,9 +1,7 @@
 import { z } from "zod";
-import { GoogleGenAI } from "@google/genai";
 import { profileSchema, type ProfileInput } from "@/lib/schemas/profile";
-import { generateContentWithFallback } from "@/lib/geminiModel";
+import { getProvider, type AiProviderId } from "@/lib/ai";
 
-const DEFAULT_MODEL = "gemini-flash-latest";
 const PROFILE_JSON_SCHEMA = z.toJSONSchema(profileSchema);
 
 const BEGIN_DOCUMENT = "\\begin{document}";
@@ -12,7 +10,7 @@ const END_DOCUMENT = "\\end{document}";
 /**
  * Splits a template into its preamble (everything through \begin{document})
  * and its body (everything between \begin{document} and \end{document}).
- * Gemini only ever generates a replacement body — the preamble (packages,
+ * The model only ever generates a replacement body — the preamble (packages,
  * macros, \titleformat, colors) is spliced back in verbatim afterwards, so a
  * hallucinated preamble (e.g. retyping "dvipsnames" as "dvipsNames") can
  * never break compilation, no matter what the model outputs.
@@ -96,24 +94,22 @@ export async function generateResumeLatex({
   templateSource,
   jobDescription,
   apiKey,
+  provider,
 }: {
   profile: ProfileInput;
   templateSource: string;
   jobDescription?: string;
   apiKey: string;
+  provider: AiProviderId;
 }): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey });
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
   const { preamble, body } = splitTemplate(templateSource);
 
-  const response = await generateContentWithFallback(ai, apiKey, {
-    model,
-    contents: buildPrompt(profile, body, jobDescription),
+  const text = await getProvider(provider).generateText({
+    prompt: buildPrompt(profile, body, jobDescription),
+    apiKey,
   });
-
-  const text = response.text;
   if (!text) {
-    throw new Error("Gemini returned an empty response");
+    throw new Error("The AI provider returned an empty response");
   }
 
   return `${preamble}\n${stripCodeFence(text)}\n${END_DOCUMENT}\n`;
@@ -129,13 +125,12 @@ export async function generateResumeLatex({
 export async function parseResumeText({
   resumeText,
   apiKey,
+  provider,
 }: {
   resumeText: string;
   apiKey: string;
+  provider: AiProviderId;
 }): Promise<ProfileInput> {
-  const ai = new GoogleGenAI({ apiKey });
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-
   const prompt = `Extract structured profile data from this resume text.
 
 Only include information actually present in the text — never invent
@@ -150,23 +145,15 @@ RESUME TEXT:
 ${resumeText}
 """`;
 
-  const response = await generateContentWithFallback(ai, apiKey, {
-    model,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseJsonSchema: PROFILE_JSON_SCHEMA,
-    },
+  const result = await getProvider(provider).generateStructured({
+    prompt,
+    apiKey,
+    jsonSchema: PROFILE_JSON_SCHEMA,
   });
 
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned an empty response");
-  }
-
-  const parsed = profileSchema.safeParse(JSON.parse(text));
+  const parsed = profileSchema.safeParse(result);
   if (!parsed.success) {
-    throw new Error("Gemini's extracted profile didn't match the expected shape");
+    throw new Error("The AI's extracted profile didn't match the expected shape");
   }
   return parsed.data;
 }

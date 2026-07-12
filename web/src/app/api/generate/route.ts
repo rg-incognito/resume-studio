@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized } from "@/lib/auth";
 import { decrypt } from "@/lib/encryption";
 import { compileLatex, LatexCompileError } from "@/lib/compiler";
-import { generateResumeLatex } from "@/lib/gemini";
-import { describeGeminiError } from "@/lib/geminiErrors";
+import { generateResumeLatex } from "@/lib/resumeAi";
+import { describeAiError } from "@/lib/aiErrors";
+import type { AiProviderId } from "@/lib/ai";
 import { savePdf } from "@/lib/storage";
 import { profileSchema } from "@/lib/schemas/profile";
 
@@ -36,10 +37,11 @@ export async function POST(request: NextRequest) {
   }
   if (!apiKeyRecord) {
     return Response.json(
-      { error: "Add your Gemini API key in Settings first" },
+      { error: "Add an API key in Settings first" },
       { status: 400 },
     );
   }
+  const provider = apiKeyRecord.provider as AiProviderId;
   const profileParsed = profileSchema.safeParse(profileRecord ?? {});
   if (!profileRecord || !profileParsed.success) {
     return Response.json(
@@ -66,10 +68,11 @@ export async function POST(request: NextRequest) {
         templateSource: template.latexTemplateSource,
         jobDescription,
         apiKey,
+        provider,
       });
     } catch (err) {
       return Response.json(
-        { error: `Gemini generation failed: ${describeGeminiError(err)}` },
+        { error: `AI generation failed: ${describeAiError(err, provider)}` },
         { status: 502 },
       );
     }

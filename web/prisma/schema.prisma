@@ -54,6 +54,9 @@ model ApiKey {
   userId       String    @unique
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Which BYOK provider this key belongs to: "gemini" | "anthropic" | "openai".
+  // Only one key stored per user — switching providers replaces this row.
+  provider     String    @default("gemini")
   // AES-256 ciphertext, never the raw key (see Goal.txt section 7).
   encryptedKey String
   createdAt    DateTime  @default(now())

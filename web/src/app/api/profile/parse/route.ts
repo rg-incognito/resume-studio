@@ -3,8 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized } from "@/lib/auth";
 import { decrypt } from "@/lib/encryption";
-import { parseResumeText } from "@/lib/gemini";
-import { describeGeminiError } from "@/lib/geminiErrors";
+import { parseResumeText } from "@/lib/resumeAi";
+import { describeAiError } from "@/lib/aiErrors";
+import type { AiProviderId } from "@/lib/ai";
 
 const bodySchema = z.object({ resumeText: z.string().min(20).max(30_000) });
 
@@ -24,20 +25,22 @@ export async function POST(request: NextRequest) {
   const apiKeyRecord = await prisma.apiKey.findUnique({ where: { userId: user.id } });
   if (!apiKeyRecord) {
     return Response.json(
-      { error: "Add your Gemini API key in Settings first" },
+      { error: "Add an API key in Settings first" },
       { status: 400 },
     );
   }
+  const provider = apiKeyRecord.provider as AiProviderId;
 
   try {
     const profile = await parseResumeText({
       resumeText: parsed.data.resumeText,
       apiKey: decrypt(apiKeyRecord.encryptedKey),
+      provider,
     });
     return Response.json(profile);
   } catch (err) {
     return Response.json(
-      { error: `Couldn't parse that resume: ${describeGeminiError(err)}` },
+      { error: `Couldn't parse that resume: ${describeAiError(err, provider)}` },
       { status: 502 },
     );
   }
