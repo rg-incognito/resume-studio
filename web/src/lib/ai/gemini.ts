@@ -18,9 +18,9 @@ const FALLBACK_PREFERENCE = ["flash-latest", "2.5-flash", "flash", "pro-latest",
 const EXCLUDE_PATTERN =
   /embedding|vision|image|tts|audio|video|aqa|veo|imagen|nano-banana|lyria|robotic|computer-use|deep-research|antigravity/i;
 
-// Once the configured model 404s, walk down at most this many ranked
+// Once the configured model fails, walk down at most this many ranked
 // fallback candidates before giving up — bounds worst-case latency (each
-// unavailable-model attempt fails fast with a 404, so this is generous).
+// unusable-model attempt fails fast, so this is generous).
 const FALLBACK_CANDIDATE_LIMIT = 8;
 
 // Cache the first model that actually works per API key for the life of the
@@ -39,20 +39,30 @@ export class GeminiModelUnavailableError extends Error {
   }
 }
 
-function isModelUnavailableError(err: unknown): boolean {
+/**
+ * True for errors that mean "this specific model doesn't work for this key"
+ * — retired/not found (404), no permission for it (403), or its quota is
+ * exhausted (429, including a hard 0-quota tier). In all these cases the fix
+ * is to try a *different* model, not to retry the same one.
+ */
+function isModelUnusableError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return (
     message.includes('"code":404') ||
     message.includes("NOT_FOUND") ||
     message.includes("is no longer available") ||
-    message.includes("was not found")
+    message.includes("was not found") ||
+    message.includes('"code":403') ||
+    message.includes("PERMISSION_DENIED") ||
+    message.includes('"code":429') ||
+    message.includes("RESOURCE_EXHAUSTED")
   );
 }
 
 // Google's own error text for this calls it "usually temporary" — the model
 // itself is fine, it's just overloaded right now, so this is handled by
 // retrying the *same* model with a short backoff rather than by switching
-// models like isModelUnavailableError does.
+// models like isModelUnusableError does.
 function isTransientOverloadError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return message.includes("UNAVAILABLE") || message.includes('"code":503');
@@ -98,10 +108,13 @@ async function rankedFallbackCandidates(ai: GoogleGenAI, exclude: Set<string>): 
 
 /**
  * Wraps ai.models.generateContent: tries the configured/cached model first,
- * then — only if that specific model is unavailable for this key — walks
- * down a ranked list of every other model the key can actually reach,
- * dropping one at a time until one works. Throws GeminiModelUnavailableError
- * (carrying every model tried) if none of them do.
+ * then — only if that specific model is unusable for this key (retired, no
+ * permission, or out of quota) — walks down a ranked list of every other
+ * model the key can actually reach, dropping one at a time until one works.
+ * A transiently-overloaded model (503) is retried in place first, since
+ * that's a same-model backoff situation, not a "pick a different model" one.
+ * Throws GeminiModelUnavailableError (carrying every model tried) if none of
+ * them do.
  */
 async function generateContentWithFallback(
   ai: GoogleGenAI,
@@ -116,24 +129,17 @@ async function generateContentWithFallback(
   ): Promise<{ response: GenerateContentResponse; modelUsed: string; attempted: AiAttempt[] } | null> {
     tried.add(model);
     for (let retry = 0; ; retry++) {
-      console.error(`[gemini-trace] calling generateContent model=${model} retry=${retry} t=${Date.now()}`);
       try {
         const response = await ai.models.generateContent({ ...params, model });
-        console.error(`[gemini-trace] SUCCESS model=${model} t=${Date.now()}`);
         workingModelCache.set(apiKey, model);
         attempted.push({ model, ok: true });
         return { response, modelUsed: model, attempted };
       } catch (err) {
-        console.error(`[gemini-trace] CAUGHT model=${model} retry=${retry} t=${Date.now()} err=${err instanceof Error ? err.message : String(err)}`);
         if (isTransientOverloadError(err) && retry < TRANSIENT_RETRY_DELAYS_MS.length) {
-          console.error(`[gemini-trace] sleeping ${TRANSIENT_RETRY_DELAYS_MS[retry]}ms before retry`);
           await sleep(TRANSIENT_RETRY_DELAYS_MS[retry]);
           continue;
         }
-        if (!isTransientOverloadError(err) && !isModelUnavailableError(err)) {
-          console.error(`[gemini-trace] RETHROWING model=${model} t=${Date.now()}`);
-          throw err;
-        }
+        if (!isTransientOverloadError(err) && !isModelUnusableError(err)) throw err;
         attempted.push({ model, ok: false, error: err instanceof Error ? err.message : String(err) });
         return null;
       }
@@ -141,13 +147,10 @@ async function generateContentWithFallback(
   }
 
   const firstModel = workingModelCache.get(apiKey) ?? params.model;
-  console.error(`[gemini-trace] START firstModel=${firstModel} t=${Date.now()}`);
   const first = await attempt(firstModel);
   if (first) return first;
 
-  console.error(`[gemini-trace] listing fallback candidates t=${Date.now()}`);
   const candidates = await rankedFallbackCandidates(ai, tried);
-  console.error(`[gemini-trace] got ${candidates.length} candidates: ${candidates.join(", ")} t=${Date.now()}`);
   for (const candidate of candidates) {
     const result = await attempt(candidate);
     if (result) return result;
