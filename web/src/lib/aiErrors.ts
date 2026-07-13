@@ -27,6 +27,9 @@ function describeGeminiError(err: unknown): string {
   if (message.includes('"code":404') && message.includes("no longer available")) {
     return "The Gemini model this app was configured to use has been retired by Google for your account. The app tried to automatically switch to a different available model — if you're seeing this, that also failed. Try again in a moment.";
   }
+  if (message.includes("UNAVAILABLE") || message.includes('"code":503')) {
+    return "Gemini is temporarily overloaded on Google's end (their own error calls this \"usually temporary\"). The app already retried a couple of times — wait a moment and try again.";
+  }
 
   return message;
 }
@@ -56,6 +59,8 @@ function describeAnthropicOrOpenAiError(err: unknown, provider: "anthropic" | "o
       return `The ${label} model this app is configured to use isn't available for your account. Check your model access at ${consoleUrl}.`;
     case 429:
       return `Your ${label} API key is being rate-limited or has hit its usage/billing limit. Check your usage at ${consoleUrl}, or wait and try again.`;
+    case 503:
+      return `${label} is temporarily overloaded on their end. Wait a moment and try again.`;
     default:
       return err instanceof Error ? err.message : String(err);
   }

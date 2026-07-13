@@ -49,6 +49,21 @@ function isModelUnavailableError(err: unknown): boolean {
   );
 }
 
+// Google's own error text for this calls it "usually temporary" — the model
+// itself is fine, it's just overloaded right now, so this is handled by
+// retrying the *same* model with a short backoff rather than by switching
+// models like isModelUnavailableError does.
+function isTransientOverloadError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes("UNAVAILABLE") || message.includes('"code":503');
+}
+
+const TRANSIENT_RETRY_DELAYS_MS = [500, 1500];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Lists every model this API key can call generateContent on (excluding the
  * ones already tried and non-text specialty models), ranked by
@@ -100,15 +115,21 @@ async function generateContentWithFallback(
     model: string,
   ): Promise<{ response: GenerateContentResponse; modelUsed: string; attempted: AiAttempt[] } | null> {
     tried.add(model);
-    try {
-      const response = await ai.models.generateContent({ ...params, model });
-      workingModelCache.set(apiKey, model);
-      attempted.push({ model, ok: true });
-      return { response, modelUsed: model, attempted };
-    } catch (err) {
-      if (!isModelUnavailableError(err)) throw err;
-      attempted.push({ model, ok: false, error: err instanceof Error ? err.message : String(err) });
-      return null;
+    for (let retry = 0; ; retry++) {
+      try {
+        const response = await ai.models.generateContent({ ...params, model });
+        workingModelCache.set(apiKey, model);
+        attempted.push({ model, ok: true });
+        return { response, modelUsed: model, attempted };
+      } catch (err) {
+        if (isTransientOverloadError(err) && retry < TRANSIENT_RETRY_DELAYS_MS.length) {
+          await sleep(TRANSIENT_RETRY_DELAYS_MS[retry]);
+          continue;
+        }
+        if (!isTransientOverloadError(err) && !isModelUnavailableError(err)) throw err;
+        attempted.push({ model, ok: false, error: err instanceof Error ? err.message : String(err) });
+        return null;
+      }
     }
   }
 
