@@ -4,7 +4,7 @@ import { getCurrentUser, unauthorized } from "@/lib/auth";
 import { decrypt } from "@/lib/encryption";
 import { assertPdfSize, extractPdfText, PdfTextExtractionError } from "@/lib/pdfText";
 import { analyzeAts } from "@/lib/atsCheck";
-import { describeAiError } from "@/lib/aiErrors";
+import { describeAiError, rawAiErrorDetail } from "@/lib/aiErrors";
 import type { AiProviderId } from "@/lib/ai";
 
 const MAX_JD_CHARS = 20_000;
@@ -56,17 +56,20 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const report = await analyzeAts({
+    const { report, modelUsed } = await analyzeAts({
       resumeText,
       totalPages,
       jobDescription: jobDescription || undefined,
       apiKey: decrypt(apiKeyRecord.encryptedKey),
       provider,
     });
-    return Response.json(report);
+    return Response.json({ report, modelUsed });
   } catch (err) {
     return Response.json(
-      { error: `ATS analysis failed: ${describeAiError(err, provider)}` },
+      {
+        error: `ATS analysis failed: ${describeAiError(err, provider)}`,
+        log: rawAiErrorDetail(err, provider),
+      },
       { status: 502 },
     );
   }

@@ -1,11 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { AiProvider, GenerateStructuredParams, GenerateTextParams } from "@/lib/ai/types";
+import { AI_REQUEST_TIMEOUT_MS } from "@/lib/ai/types";
 
 const DEFAULT_MODEL = "claude-sonnet-5";
 const MAX_TOKENS = 8192;
 
-async function generateText({ prompt, apiKey }: GenerateTextParams): Promise<string> {
-  const client = new Anthropic({ apiKey });
+async function generateText({ prompt, apiKey }: GenerateTextParams) {
+  const client = new Anthropic({ apiKey, timeout: AI_REQUEST_TIMEOUT_MS });
   const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 
   const response = await client.messages.create({
@@ -16,7 +17,7 @@ async function generateText({ prompt, apiKey }: GenerateTextParams): Promise<str
 
   const textBlock = response.content.find((block) => block.type === "text");
   if (!textBlock) throw new Error("Claude returned no text content");
-  return textBlock.text;
+  return { text: textBlock.text, modelUsed: model, attempted: [{ model, ok: true }] };
 }
 
 /**
@@ -25,8 +26,8 @@ async function generateText({ prompt, apiKey }: GenerateTextParams): Promise<str
  * is the schema we want, force tool_choice to that tool, and read the
  * already-parsed object straight off the returned tool_use block's .input.
  */
-async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStructuredParams): Promise<unknown> {
-  const client = new Anthropic({ apiKey });
+async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStructuredParams) {
+  const client = new Anthropic({ apiKey, timeout: AI_REQUEST_TIMEOUT_MS });
   const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 
   const response = await client.messages.create({
@@ -45,7 +46,7 @@ async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStruct
 
   const toolUse = response.content.find((block) => block.type === "tool_use");
   if (!toolUse) throw new Error("Claude did not return structured output");
-  return toolUse.input;
+  return { data: toolUse.input, modelUsed: model, attempted: [{ model, ok: true }] };
 }
 
 export const anthropicProvider: AiProvider = {

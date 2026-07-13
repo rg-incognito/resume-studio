@@ -1,18 +1,27 @@
 import { GoogleGenAI, type GenerateContentParameters, type GenerateContentResponse } from "@google/genai";
-import type { AiProvider, GenerateStructuredParams, GenerateTextParams } from "@/lib/ai/types";
+import type { AiAttempt, AiProvider, GenerateStructuredParams, GenerateTextParams } from "@/lib/ai/types";
+import { AI_REQUEST_TIMEOUT_MS } from "@/lib/ai/types";
 
 const DEFAULT_MODEL = "gemini-flash-latest";
 
 // Preferred by substring match, checked in order — cheaper/faster models
 // first. Gemini's available model lineup changes over time (a hardcoded
 // model id can start 404ing for reasons outside our control), so this is a
-// *preference* for picking among whatever ai.models.list() actually returns
-// right now, not a hardcoded model id.
+// *preference* for ranking whatever ai.models.list() actually returns right
+// now, not a hardcoded model id.
 const FALLBACK_PREFERENCE = ["flash-latest", "2.5-flash", "flash", "pro-latest", "pro"];
 
 // Model names that support chat-style generateContent but aren't good fits
-// here (vision-only, embeddings, TTS, image generation, etc.).
-const EXCLUDE_PATTERN = /embedding|vision|image|tts|audio|video|aqa|veo|imagen/i;
+// here (vision-only, embeddings, TTS, image generation, music, robotics/
+// agent/research specialty models, etc.) — excluded so fallback doesn't burn
+// an attempt on something that will never return usable prose/JSON.
+const EXCLUDE_PATTERN =
+  /embedding|vision|image|tts|audio|video|aqa|veo|imagen|nano-banana|lyria|robotic|computer-use|deep-research|antigravity/i;
+
+// Once the configured model 404s, walk down at most this many ranked
+// fallback candidates before giving up — bounds worst-case latency (each
+// unavailable-model attempt fails fast with a 404, so this is generous).
+const FALLBACK_CANDIDATE_LIMIT = 8;
 
 // Cache the first model that actually works per API key for the life of the
 // process, so repeat requests from the same user don't re-discover on every
@@ -21,9 +30,12 @@ const EXCLUDE_PATTERN = /embedding|vision|image|tts|audio|video|aqa|veo|imagen/i
 const workingModelCache = new Map<string, string>();
 
 export class GeminiModelUnavailableError extends Error {
-  constructor(message: string) {
+  attemptedModels: string[];
+
+  constructor(message: string, attemptedModels: string[]) {
     super(message);
     this.name = "GeminiModelUnavailableError";
+    this.attemptedModels = attemptedModels;
   }
 }
 
@@ -37,76 +49,103 @@ function isModelUnavailableError(err: unknown): boolean {
   );
 }
 
-async function discoverFallbackModel(ai: GoogleGenAI, tried: Set<string>): Promise<string | null> {
+/**
+ * Lists every model this API key can call generateContent on (excluding the
+ * ones already tried and non-text specialty models), ranked by
+ * FALLBACK_PREFERENCE with everything else appended after, and capped at
+ * FALLBACK_CANDIDATE_LIMIT.
+ */
+async function rankedFallbackCandidates(ai: GoogleGenAI, exclude: Set<string>): Promise<string[]> {
   const pager = await ai.models.list();
   const candidates: string[] = [];
   for await (const model of pager) {
     const name = model.name?.replace(/^models\//, "");
-    if (!name || tried.has(name) || EXCLUDE_PATTERN.test(name)) continue;
+    if (!name || exclude.has(name) || EXCLUDE_PATTERN.test(name)) continue;
     const actions = model.supportedActions ?? [];
     if (actions.length && !actions.includes("generateContent")) continue;
     candidates.push(name);
   }
-  if (candidates.length === 0) return null;
 
+  const ranked: string[] = [];
+  const remaining = new Set(candidates);
   for (const pref of FALLBACK_PREFERENCE) {
-    const match = candidates.find((c) => c.includes(pref));
-    if (match) return match;
+    for (const c of candidates) {
+      if (remaining.has(c) && c.includes(pref)) {
+        ranked.push(c);
+        remaining.delete(c);
+      }
+    }
   }
-  return candidates[0];
+  for (const c of candidates) if (remaining.has(c)) ranked.push(c);
+
+  return ranked.slice(0, FALLBACK_CANDIDATE_LIMIT);
 }
 
 /**
- * Wraps ai.models.generateContent, automatically discovering and retrying
- * with a different model (via ai.models.list()) if the configured model has
- * been retired/deprecated for this account. Throws GeminiModelUnavailableError
- * with a clear message if no working model can be found at all.
+ * Wraps ai.models.generateContent: tries the configured/cached model first,
+ * then — only if that specific model is unavailable for this key — walks
+ * down a ranked list of every other model the key can actually reach,
+ * dropping one at a time until one works. Throws GeminiModelUnavailableError
+ * (carrying every model tried) if none of them do.
  */
 async function generateContentWithFallback(
   ai: GoogleGenAI,
   apiKey: string,
   params: GenerateContentParameters,
-): Promise<GenerateContentResponse> {
+): Promise<{ response: GenerateContentResponse; modelUsed: string; attempted: AiAttempt[] }> {
+  const attempted: AiAttempt[] = [];
   const tried = new Set<string>();
-  let model = workingModelCache.get(apiKey) ?? params.model;
 
-  const MAX_ATTEMPTS = 3;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  async function attempt(
+    model: string,
+  ): Promise<{ response: GenerateContentResponse; modelUsed: string; attempted: AiAttempt[] } | null> {
     tried.add(model);
     try {
       const response = await ai.models.generateContent({ ...params, model });
       workingModelCache.set(apiKey, model);
-      return response;
+      attempted.push({ model, ok: true });
+      return { response, modelUsed: model, attempted };
     } catch (err) {
       if (!isModelUnavailableError(err)) throw err;
-
-      const fallback = await discoverFallbackModel(ai, tried);
-      if (!fallback) {
-        throw new GeminiModelUnavailableError(
-          `The configured Gemini model ("${params.model}") is unavailable, and no working alternative could be found for this API key. Check that the key is valid and has access to at least one Gemini model at ai.google.dev.`,
-        );
-      }
-      model = fallback;
+      attempted.push({ model, ok: false, error: err instanceof Error ? err.message : String(err) });
+      return null;
     }
   }
-  throw new GeminiModelUnavailableError(`Tried ${tried.size} Gemini models and none worked for this API key.`);
+
+  const firstModel = workingModelCache.get(apiKey) ?? params.model;
+  const first = await attempt(firstModel);
+  if (first) return first;
+
+  const candidates = await rankedFallbackCandidates(ai, tried);
+  for (const candidate of candidates) {
+    const result = await attempt(candidate);
+    if (result) return result;
+  }
+
+  throw new GeminiModelUnavailableError(
+    `Tried ${attempted.length} Gemini model(s) and none worked for this API key: ${attempted.map((a) => a.model).join(", ")}.`,
+    attempted.map((a) => a.model),
+  );
 }
 
-async function generateText({ prompt, apiKey }: GenerateTextParams): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey });
+async function generateText({ prompt, apiKey }: GenerateTextParams) {
+  const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: AI_REQUEST_TIMEOUT_MS } });
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
-  const response = await generateContentWithFallback(ai, apiKey, { model, contents: prompt });
+  const { response, modelUsed, attempted } = await generateContentWithFallback(ai, apiKey, {
+    model,
+    contents: prompt,
+  });
   const text = response.text;
   if (!text) throw new Error("Gemini returned an empty response");
-  return text;
+  return { text, modelUsed, attempted };
 }
 
-async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStructuredParams): Promise<unknown> {
-  const ai = new GoogleGenAI({ apiKey });
+async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStructuredParams) {
+  const ai = new GoogleGenAI({ apiKey, httpOptions: { timeout: AI_REQUEST_TIMEOUT_MS } });
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
 
-  const response = await generateContentWithFallback(ai, apiKey, {
+  const { response, modelUsed, attempted } = await generateContentWithFallback(ai, apiKey, {
     model,
     contents: prompt,
     config: {
@@ -116,7 +155,7 @@ async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStruct
   });
   const text = response.text;
   if (!text) throw new Error("Gemini returned an empty response");
-  return JSON.parse(text);
+  return { data: JSON.parse(text), modelUsed, attempted };
 }
 
 export const geminiProvider: AiProvider = {

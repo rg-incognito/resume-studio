@@ -1,10 +1,11 @@
 import OpenAI from "openai";
 import type { AiProvider, GenerateStructuredParams, GenerateTextParams } from "@/lib/ai/types";
+import { AI_REQUEST_TIMEOUT_MS } from "@/lib/ai/types";
 
 const DEFAULT_MODEL = "gpt-5.1";
 
-async function generateText({ prompt, apiKey }: GenerateTextParams): Promise<string> {
-  const client = new OpenAI({ apiKey });
+async function generateText({ prompt, apiKey }: GenerateTextParams) {
+  const client = new OpenAI({ apiKey, timeout: AI_REQUEST_TIMEOUT_MS });
   const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
 
   const response = await client.chat.completions.create({
@@ -14,11 +15,11 @@ async function generateText({ prompt, apiKey }: GenerateTextParams): Promise<str
 
   const text = response.choices[0]?.message?.content;
   if (!text) throw new Error("OpenAI returned an empty response");
-  return text;
+  return { text, modelUsed: model, attempted: [{ model, ok: true }] };
 }
 
-async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStructuredParams): Promise<unknown> {
-  const client = new OpenAI({ apiKey });
+async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStructuredParams) {
+  const client = new OpenAI({ apiKey, timeout: AI_REQUEST_TIMEOUT_MS });
   const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
 
   const response = await client.chat.completions.create({
@@ -40,7 +41,7 @@ async function generateStructured({ prompt, apiKey, jsonSchema }: GenerateStruct
 
   const text = response.choices[0]?.message?.content;
   if (!text) throw new Error("OpenAI returned an empty response");
-  return JSON.parse(text);
+  return { data: JSON.parse(text), modelUsed: model, attempted: [{ model, ok: true }] };
 }
 
 export const openaiProvider: AiProvider = {

@@ -1,4 +1,6 @@
 import type { AiProviderId } from "@/lib/ai";
+import { AI_REQUEST_TIMEOUT_MS } from "@/lib/ai/types";
+import { GeminiModelUnavailableError } from "@/lib/ai/gemini";
 
 function describeGeminiError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
@@ -59,6 +61,14 @@ function describeAnthropicOrOpenAiError(err: unknown, provider: "anthropic" | "o
   }
 }
 
+/** True for the SDKs' own timeout errors (Anthropic/OpenAI's `APIConnectionTimeoutError`,
+ *  or a raw fetch `AbortError` from Gemini's client) once AI_REQUEST_TIMEOUT_MS elapses. */
+function isTimeoutError(err: unknown): boolean {
+  if (err instanceof Error && err.name === "APIConnectionTimeoutError") return true;
+  if (err instanceof Error && err.name === "AbortError") return true;
+  return err instanceof Error && /timed? ?out/i.test(err.message);
+}
+
 /**
  * Every provider SDK throws differently — Gemini's errors are a stringified
  * JSON blob inside Error.message, Anthropic/OpenAI throw typed error classes
@@ -67,6 +77,29 @@ function describeAnthropicOrOpenAiError(err: unknown, provider: "anthropic" | "o
  * into a plain sentence regardless of provider.
  */
 export function describeAiError(err: unknown, provider: AiProviderId): string {
+  if (isTimeoutError(err)) {
+    const label = provider === "gemini" ? "Gemini" : provider === "anthropic" ? "Anthropic" : "OpenAI";
+    return `${label} didn't respond within ${AI_REQUEST_TIMEOUT_MS / 1000}s, so the request was cancelled. This usually means a network problem reaching ${label}'s API from the server, not your prompt — try again in a moment.`;
+  }
   if (provider === "gemini") return describeGeminiError(err);
   return describeAnthropicOrOpenAiError(err, provider);
+}
+
+/**
+ * The raw, technical counterpart to describeAiError's plain-language
+ * sentence — shown in a collapsed "Details" panel in the UI so the actual
+ * failure (which model(s) were tried, HTTP status, raw SDK message) is
+ * visible without needing server log access.
+ */
+export function rawAiErrorDetail(err: unknown, provider: AiProviderId): string {
+  const lines = [`provider: ${provider}`];
+
+  if (err instanceof GeminiModelUnavailableError) {
+    lines.push(`models tried: ${err.attemptedModels.join(", ") || "(none)"}`);
+  }
+  const status = getStatus(err);
+  if (status !== undefined) lines.push(`status: ${status}`);
+
+  lines.push(err instanceof Error ? `${err.name}: ${err.message}` : String(err));
+  return lines.join("\n");
 }

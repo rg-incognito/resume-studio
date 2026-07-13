@@ -18,6 +18,7 @@ function GeneratePageInner() {
   const [error, setError] = useState<string | null>(null);
   const [errorLog, setErrorLog] = useState<string | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch("/api/templates")
@@ -35,6 +36,7 @@ function GeneratePageInner() {
     setError(null);
     setErrorLog(null);
     setPdfBlobUrl(null);
+    setModelUsed(null);
 
     const res = await apiFetch("/api/generate", {
       method: "POST",
@@ -52,10 +54,11 @@ function GeneratePageInner() {
       return;
     }
 
-    const { id } = await res.json();
+    const { id, modelUsed: usedModel } = await res.json();
     const pdfRes = await apiFetch(`/api/resume-versions/${id}/pdf`);
     const blob = await pdfRes.blob();
     setPdfBlobUrl(URL.createObjectURL(blob));
+    setModelUsed(usedModel ?? null);
     setState("done");
   }
 
@@ -128,12 +131,16 @@ function GeneratePageInner() {
                 : "Generate resume"}
           </motion.button>
 
+          {modelUsed && state === "done" && (
+            <p className="font-mono text-[11px] text-ink-muted">Generated with {modelUsed}</p>
+          )}
+
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3 font-mono text-xs text-red-800">
               {error}
               {errorLog && (
                 <details className="mt-2">
-                  <summary className="cursor-pointer font-sans font-medium">Compile log</summary>
+                  <summary className="cursor-pointer font-sans font-medium">Details</summary>
                   <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-[10px]">
                     {errorLog}
                   </pre>

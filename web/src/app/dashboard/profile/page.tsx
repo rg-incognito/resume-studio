@@ -26,6 +26,8 @@ export default function ProfilePage() {
   const [resumeText, setResumeText] = useState("");
   const [importState, setImportState] = useState<ImportState>("idle");
   const [importError, setImportError] = useState<string | null>(null);
+  const [importErrorLog, setImportErrorLog] = useState<string | null>(null);
+  const [importModelUsed, setImportModelUsed] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
 
   useEffect(() => {
@@ -66,19 +68,23 @@ export default function ProfilePage() {
     if (!resumeText.trim()) return;
     setImportState("parsing");
     setImportError(null);
+    setImportErrorLog(null);
     const res = await apiFetch("/api/profile/parse", {
       method: "POST",
       body: JSON.stringify({ resumeText: resumeText.trim() }),
     });
     if (res.ok) {
-      const parsed: ProfileInput = await res.json();
+      const { profile: parsed, modelUsed }: { profile: ProfileInput; modelUsed: string } = await res.json();
       setProfile(parsed);
       setImportState("idle");
       setShowImport(false);
       setResumeText("");
+      setImportModelUsed(modelUsed);
+      setTimeout(() => setImportModelUsed(null), 4000);
     } else {
       const body = await res.json().catch(() => null);
       setImportError(body?.error ?? "Couldn't parse that resume.");
+      setImportErrorLog(body?.log ?? null);
       setImportState("error");
     }
   }
@@ -94,6 +100,9 @@ export default function ProfilePage() {
         <SaveButton state={saveState} onClick={handleSave} />
       </div>
       {errorDetail && <p className="mt-2 font-sans text-sm text-red-700">{errorDetail}</p>}
+      {importModelUsed && (
+        <p className="mt-2 font-mono text-[11px] text-ink-muted">Parsed with {importModelUsed}</p>
+      )}
       <p className="mt-2 font-sans text-ink-muted">
         This is the source of truth. Resumes are always generated from it, never edited
         directly.
@@ -137,13 +146,26 @@ export default function ProfilePage() {
                 onClick={() => {
                   setShowImport(false);
                   setImportError(null);
+                  setImportErrorLog(null);
                 }}
                 className="font-sans text-sm text-ink-muted hover:text-ink"
               >
                 Cancel
               </button>
             </div>
-            {importError && <p className="mt-2 font-sans text-sm text-red-700">{importError}</p>}
+            {importError && (
+              <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-3 font-sans text-sm text-red-800">
+                {importError}
+                {importErrorLog && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer font-sans text-xs font-medium">Details</summary>
+                    <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[10px]">
+                      {importErrorLog}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

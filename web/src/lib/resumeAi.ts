@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { profileSchema, type ProfileInput } from "@/lib/schemas/profile";
 import { getProvider, type AiProviderId } from "@/lib/ai";
+import type { AiAttempt } from "@/lib/ai/types";
 
 const PROFILE_JSON_SCHEMA = z.toJSONSchema(profileSchema);
 
@@ -101,10 +102,10 @@ export async function generateResumeLatex({
   jobDescription?: string;
   apiKey: string;
   provider: AiProviderId;
-}): Promise<string> {
+}): Promise<{ latex: string; modelUsed: string; attempted: AiAttempt[] }> {
   const { preamble, body } = splitTemplate(templateSource);
 
-  const text = await getProvider(provider).generateText({
+  const { text, modelUsed, attempted } = await getProvider(provider).generateText({
     prompt: buildPrompt(profile, body, jobDescription),
     apiKey,
   });
@@ -112,7 +113,7 @@ export async function generateResumeLatex({
     throw new Error("The AI provider returned an empty response");
   }
 
-  return `${preamble}\n${stripCodeFence(text)}\n${END_DOCUMENT}\n`;
+  return { latex: `${preamble}\n${stripCodeFence(text)}\n${END_DOCUMENT}\n`, modelUsed, attempted };
 }
 
 /**
@@ -130,7 +131,7 @@ export async function parseResumeText({
   resumeText: string;
   apiKey: string;
   provider: AiProviderId;
-}): Promise<ProfileInput> {
+}): Promise<{ profile: ProfileInput; modelUsed: string; attempted: AiAttempt[] }> {
   const prompt = `Extract structured profile data from this resume text.
 
 Only include information actually present in the text — never invent
@@ -145,15 +146,15 @@ RESUME TEXT:
 ${resumeText}
 """`;
 
-  const result = await getProvider(provider).generateStructured({
+  const { data, modelUsed, attempted } = await getProvider(provider).generateStructured({
     prompt,
     apiKey,
     jsonSchema: PROFILE_JSON_SCHEMA,
   });
 
-  const parsed = profileSchema.safeParse(result);
+  const parsed = profileSchema.safeParse(data);
   if (!parsed.success) {
     throw new Error("The AI's extracted profile didn't match the expected shape");
   }
-  return parsed.data;
+  return { profile: parsed.data, modelUsed, attempted };
 }

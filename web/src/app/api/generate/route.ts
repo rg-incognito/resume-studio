@@ -5,7 +5,7 @@ import { getCurrentUser, unauthorized } from "@/lib/auth";
 import { decrypt } from "@/lib/encryption";
 import { compileLatex, LatexCompileError } from "@/lib/compiler";
 import { generateResumeLatex } from "@/lib/resumeAi";
-import { describeAiError } from "@/lib/aiErrors";
+import { describeAiError, rawAiErrorDetail } from "@/lib/aiErrors";
 import type { AiProviderId } from "@/lib/ai";
 import { savePdf } from "@/lib/storage";
 import { profileSchema } from "@/lib/schemas/profile";
@@ -60,19 +60,20 @@ export async function POST(request: NextRequest) {
   let latex = "";
   let pdf: Buffer | undefined;
   let lastError: { message: string; log?: string } | null = null;
+  let modelUsed = "";
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      latex = await generateResumeLatex({
+      ({ latex, modelUsed } = await generateResumeLatex({
         profile: profileParsed.data,
         templateSource: template.latexTemplateSource,
         jobDescription,
         apiKey,
         provider,
-      });
+      }));
     } catch (err) {
       return Response.json(
-        { error: `AI generation failed: ${describeAiError(err, provider)}` },
+        { error: `AI generation failed: ${describeAiError(err, provider)}`, log: rawAiErrorDetail(err, provider) },
         { status: 502 },
       );
     }
@@ -114,5 +115,5 @@ export async function POST(request: NextRequest) {
     data: { lastUsedAt: new Date() },
   });
 
-  return Response.json({ id: resumeVersion.id, pdfUrl });
+  return Response.json({ id: resumeVersion.id, pdfUrl, modelUsed });
 }

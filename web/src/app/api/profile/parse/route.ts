@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, unauthorized } from "@/lib/auth";
 import { decrypt } from "@/lib/encryption";
 import { parseResumeText } from "@/lib/resumeAi";
-import { describeAiError } from "@/lib/aiErrors";
+import { describeAiError, rawAiErrorDetail } from "@/lib/aiErrors";
 import type { AiProviderId } from "@/lib/ai";
 
 const bodySchema = z.object({ resumeText: z.string().min(20).max(30_000) });
@@ -32,15 +32,18 @@ export async function POST(request: NextRequest) {
   const provider = apiKeyRecord.provider as AiProviderId;
 
   try {
-    const profile = await parseResumeText({
+    const { profile, modelUsed } = await parseResumeText({
       resumeText: parsed.data.resumeText,
       apiKey: decrypt(apiKeyRecord.encryptedKey),
       provider,
     });
-    return Response.json(profile);
+    return Response.json({ profile, modelUsed });
   } catch (err) {
     return Response.json(
-      { error: `Couldn't parse that resume: ${describeAiError(err, provider)}` },
+      {
+        error: `Couldn't parse that resume: ${describeAiError(err, provider)}`,
+        log: rawAiErrorDetail(err, provider),
+      },
       { status: 502 },
     );
   }

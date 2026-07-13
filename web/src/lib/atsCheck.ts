@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { atsReportSchema, type AtsReport } from "@/lib/schemas/atsCheck";
 import { getProvider, type AiProviderId } from "@/lib/ai";
+import type { AiAttempt } from "@/lib/ai/types";
 
 const REPORT_JSON_SCHEMA = z.toJSONSchema(atsReportSchema);
 
@@ -119,20 +120,20 @@ export async function analyzeAts({
   jobDescription?: string;
   apiKey: string;
   provider: AiProviderId;
-}): Promise<AtsReport> {
+}): Promise<{ report: AtsReport; modelUsed: string; attempted: AiAttempt[] }> {
   const signals = deterministicSignals(resumeText, totalPages);
 
-  const result = await getProvider(provider).generateStructured({
+  const { data, modelUsed, attempted } = await getProvider(provider).generateStructured({
     prompt: buildPrompt(resumeText, jobDescription, signals),
     apiKey,
     jsonSchema: REPORT_JSON_SCHEMA,
   });
 
-  const parsed = atsReportSchema.safeParse(clampStringLengths(result));
+  const parsed = atsReportSchema.safeParse(clampStringLengths(data));
   if (!parsed.success) {
     throw new Error("The ATS analysis didn't match the expected shape");
   }
-  return parsed.data;
+  return { report: parsed.data, modelUsed, attempted };
 }
 
 /**

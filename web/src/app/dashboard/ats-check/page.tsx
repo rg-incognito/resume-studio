@@ -39,14 +39,18 @@ export default function AtsCheckPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [state, setState] = useState<CheckState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [errorLog, setErrorLog] = useState<string | null>(null);
   const [report, setReport] = useState<AtsReport | null>(null);
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleCheck() {
     if (!file) return;
     setState("checking");
     setError(null);
+    setErrorLog(null);
     setReport(null);
+    setModelUsed(null);
 
     const form = new FormData();
     form.append("resume", file);
@@ -57,12 +61,14 @@ export default function AtsCheckPage() {
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       setError(body?.error ?? "ATS check failed. Try again.");
+      setErrorLog(body?.log ?? null);
       setState("error");
       return;
     }
 
-    const data: AtsReport = await res.json();
+    const { report: data, modelUsed: usedModel }: { report: AtsReport; modelUsed: string } = await res.json();
     setReport(data);
+    setModelUsed(usedModel);
     setState("done");
   }
 
@@ -118,9 +124,19 @@ export default function AtsCheckPage() {
             {state === "checking" ? "Analyzing…" : "Run ATS check"}
           </motion.button>
 
+          {modelUsed && state === "done" && (
+            <p className="font-mono text-[11px] text-ink-muted">Analyzed with {modelUsed}</p>
+          )}
+
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3 font-mono text-xs text-red-800">
               {error}
+              {errorLog && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer font-sans font-medium">Details</summary>
+                  <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-[10px]">{errorLog}</pre>
+                </details>
+              )}
             </div>
           )}
         </div>
