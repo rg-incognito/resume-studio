@@ -130,7 +130,10 @@ async function generateContentWithFallback(
           await sleep(TRANSIENT_RETRY_DELAYS_MS[retry]);
           continue;
         }
-        if (!isTransientOverloadError(err) && !isModelUnavailableError(err)) throw err;
+        if (!isTransientOverloadError(err) && !isModelUnavailableError(err)) {
+          console.error(`[gemini-trace] RETHROWING model=${model} t=${Date.now()}`);
+          throw err;
+        }
         attempted.push({ model, ok: false, error: err instanceof Error ? err.message : String(err) });
         return null;
       }

@@ -32,13 +32,16 @@ export async function POST(request: NextRequest) {
   const provider = apiKeyRecord.provider as AiProviderId;
 
   try {
+    console.error(`[route-trace] calling parseResumeText t=${Date.now()}`);
     const { profile, modelUsed } = await parseResumeText({
       resumeText: parsed.data.resumeText,
       apiKey: decrypt(apiKeyRecord.encryptedKey),
       provider,
     });
+    console.error(`[route-trace] parseResumeText SUCCESS t=${Date.now()}`);
     return Response.json({ profile, modelUsed });
   } catch (err) {
+    console.error(`[route-trace] CAUGHT in route t=${Date.now()} err=${err instanceof Error ? err.stack : String(err)}`);
     return Response.json(
       {
         error: `Couldn't parse that resume: ${describeAiError(err, provider)}`,
