@@ -116,13 +116,17 @@ async function generateContentWithFallback(
   ): Promise<{ response: GenerateContentResponse; modelUsed: string; attempted: AiAttempt[] } | null> {
     tried.add(model);
     for (let retry = 0; ; retry++) {
+      console.error(`[gemini-trace] calling generateContent model=${model} retry=${retry} t=${Date.now()}`);
       try {
         const response = await ai.models.generateContent({ ...params, model });
+        console.error(`[gemini-trace] SUCCESS model=${model} t=${Date.now()}`);
         workingModelCache.set(apiKey, model);
         attempted.push({ model, ok: true });
         return { response, modelUsed: model, attempted };
       } catch (err) {
+        console.error(`[gemini-trace] CAUGHT model=${model} retry=${retry} t=${Date.now()} err=${err instanceof Error ? err.message : String(err)}`);
         if (isTransientOverloadError(err) && retry < TRANSIENT_RETRY_DELAYS_MS.length) {
+          console.error(`[gemini-trace] sleeping ${TRANSIENT_RETRY_DELAYS_MS[retry]}ms before retry`);
           await sleep(TRANSIENT_RETRY_DELAYS_MS[retry]);
           continue;
         }
@@ -134,10 +138,13 @@ async function generateContentWithFallback(
   }
 
   const firstModel = workingModelCache.get(apiKey) ?? params.model;
+  console.error(`[gemini-trace] START firstModel=${firstModel} t=${Date.now()}`);
   const first = await attempt(firstModel);
   if (first) return first;
 
+  console.error(`[gemini-trace] listing fallback candidates t=${Date.now()}`);
   const candidates = await rankedFallbackCandidates(ai, tried);
+  console.error(`[gemini-trace] got ${candidates.length} candidates: ${candidates.join(", ")} t=${Date.now()}`);
   for (const candidate of candidates) {
     const result = await attempt(candidate);
     if (result) return result;
